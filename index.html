@@ -188,6 +188,7 @@
         function sendData(base64Image) {
             fetch('http://124.158.13.158:2024/face_recog_img_base64', {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
@@ -239,6 +240,7 @@
         function registerUser(uuid, name, base64Image) {
             fetch('http://124.158.13.158:2024/create_face_img_base64', {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
