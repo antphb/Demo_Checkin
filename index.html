@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Face Check-in Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #camera-frame {
+            width: 640px;
+            height: 480px;
+            margin: 50px auto;
+            position: relative;
+            border: 1px solid #ccc;
+            background-color: #000;
+        }
+        #countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 72px;
+            color: red;
+            display: none;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            color: green;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 0 10px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Styles cho modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            text-align: left;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+        }
+        .modal-content p {
+            margin: 15px 0;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="camera-frame">
+        <video id="video" autoplay></video>
+        <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+        <div id="countdown"></div>
+    </div>
+    <div id="controls">
+        <button id="start-camera">Open Camera</button>
+        <button id="checkin-button" disabled>Check-in</button>
+    </div>
+    <div id="result"></div>
+
+
+    <!-- Modal Popup -->
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <p>UUID: <span id="uuid"></span></p>
+            <p>Name: <input type="text" id="nameInput"></p>
+            <button id="submitName">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const startCameraButton = document.getElementById('start-camera');
+        const checkinButton = document.getElementById('checkin-button');
+        const countdownElement = document.getElementById('countdown');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const resultElement = document.getElementById('result');
+        
+        // Các phần tử modal
+        const modal = document.getElementById('myModal');
+        const span = document.getElementsByClassName('close')[0];
+        const uuidElement = document.getElementById('uuid');
+        const nameInput = document.getElementById('nameInput');
+        const submitNameButton = document.getElementById('submitName');
+
+        let stream;
+
+        startCameraButton.addEventListener('click', startCamera);
+        checkinButton.addEventListener('click', startCheckin);
+
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((mediaStream) => {
+                    stream = mediaStream;
+                    video.srcObject = stream;
+                    video.play();
+                    checkinButton.disabled = false;
+                    startCameraButton.disabled = true;
+                })
+                .catch((err) => {
+                    console.error('Error: ' + err);
+                    resultElement.textContent = 'Error: ' + err;
+                });
+        }
+
+        function startCheckin() {
+            let countdown = 3;
+            countdownElement.style.display = 'block';
+            countdownElement.textContent = countdown;
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    countdownElement.textContent = countdown;
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownElement.style.display = 'none';
+                    capturePhoto();
+                }
+            }, 1000);
+        }
+
+        function capturePhoto() {
+            // Chụp ảnh từ video
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Lấy dữ liệu ảnh từ canvas
+            const imageDataURL = canvas.toDataURL('image/jpg');
+            // lưu ảnh về máy
+
+            // saveImage(imageDataURL);
+
+            // Lấy chuỗi base64 từ data URL
+            const base64Data = imageDataURL.replace(/^data:image\/(jpg);base64,/, '');
+            // data:image/png;base64, <base64 data>
+            const base64Data2 = base64Data.split(',')[1];
+            console.log(base64Data2);
+            sendData(base64Data2);
+        }
+
+        function saveImage(imageDataURL) {
+            const a = document.createElement('a');
+            a.href = imageDataURL;
+            a.download = 'face.jpg';
+            a.click();
+        }
+
+        function sendData(base64Image) {
+            fetch('http://124.158.13.158:2024/face_recog_img_base64', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "img_base64": base64Image,
+                    "role": "0",
+                    "store_id": "4"
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+            // console.log('Success:', data);
+            // resultElement.textContent = data.message;
+                var status_code = data.status;
+                console.log(status_code);
+                if (status_code == 1) {
+                    resultElement.textContent = 'Success: ' + data.id + ' - ' + data.name;
+                }
+                if (status_code == 2) {
+                    resultElement.textContent = 'Error: ' + data.message;
+                }
+                if (status_code == 0) {
+                    const uuid = generateUUID();
+                    // convert uuid to string
+                    uuidElement.textContent = uuid;
+                    // Hiển thị modal
+                    modal.style.display = "block";
+                    // Xử lý khi bấm nút OK
+                    submitNameButton.onclick = function() {
+                        const name = nameInput.value;
+                        if (name.trim() === '') {
+                            alert('Please enter your name');
+                            return;
+                        }
+                        modal.style.display = "none";
+                        console.log(uuid, name);
+                        // Gọi API với tên và UUID
+                        registerUser(uuid, name, base64Image);
+                    };
+                }
+            })
+            .catch((error) => {
+            // console.error('Error:', error);
+            resultElement.textContent = 'Error: ' + error;
+            });
+        }
+
+        function registerUser(uuid, name, base64Image) {
+            fetch('http://124.158.13.158:2024/create_face_img_base64', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "img_base64": base64Image,
+                    "id": uuid,
+                    "name": name,
+                    "role": "0",
+                    "store_id": "4"
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                var status_code = data.status;
+
+                if (status_code == 1) {
+                    // Hiển thị thông báo
+                    alert('Register successfully: ' + data.message);
+                }
+                if (status_code == 2) {
+                    resultElement.textContent = 'Error: ' + data.message;
+                }
+                if (status_code == 0) {
+                    resultElement.textContent = 'Error: ' + data.message;
+                }
+            })
+        }
+
+        function generateUUID() { // Hàm tạo UUID
+            var d = new Date().getTime();// Timestamp
+            var d2 = (performance && performance.now && (performance.now()*1000)) || 0;// Time in microseconds since page-load or 0 if unsupported
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16;// random number between 0 and 16
+                if(d > 0){
+                    r = (d + r)%16 | 0;
+                    d = Math.floor(d/16);
+                } else {
+                    r = (d2 + r)%16 | 0;
+                    d2 = Math.floor(d2/16);
+                }
+                return (c=='x' ? r :(r&0x3|0x8)).toString(16);
+            });
+        }
+
+        // Đóng modal khi bấm vào dấu x
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        // Đóng modal khi bấm ra ngoài
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+    </script>
+</body>
+</html>
